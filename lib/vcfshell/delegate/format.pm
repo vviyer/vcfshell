@@ -1,6 +1,5 @@
-package vcfshell::delegate::info;
+package vcfshell::delegate::format;
 use strict;
-use Log4Perl qw (:easy);
 
 sub new
 {
@@ -20,5 +19,7 @@ sub config {
 
 sub trigger {
 	my $self = shift;
-	return "CHROM";
+	return "FORMAT";
 }
+
+return 1;

@@ -1,6 +1,5 @@
 package vcfshell::delegate::info;
 use strict;
-use Log4Perl qw (:easy);
 
 sub new
 {
@@ -22,3 +21,5 @@ sub trigger {
 	my $self = shift;
 	return "INFO";
 }
+
+return 1;

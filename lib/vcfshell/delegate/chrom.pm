@@ -1,6 +1,5 @@
-package vcfshell::delegate::info;
+package vcfshell::delegate::chrom;
 use strict;
-use Log4Perl qw (:easy);
 
 sub new
 {
@@ -22,3 +21,5 @@ sub trigger {
 	my $self = shift;
 	return "CHROM";
 }
+
+return 1;
