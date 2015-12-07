@@ -1,3 +1,6 @@
+#
+# Use Term::Readline to present an interactive shell for ad-hoc vcf interrogation
+#
 use strict;
 use Term::ReadLine;
 use Term::ReadLine::Gnu;
