@@ -19,7 +19,12 @@ sub config {
 
 sub trigger {
 	my $self = shift;
-	return "FORMAT";
+	return "^##FORMAT";
+}
+
+sub handle_line {
+	my $self = shift;
+	my $line = shift;
 }
 
 return 1;

@@ -19,7 +19,12 @@ sub config {
 
 sub trigger {
 	my $self = shift;
-	return "CHROM";
+	return "^#CHROM";
+}
+
+sub handle_line {
+	my $self = shift;
+	my $line = shift;
 }
 
 return 1;
