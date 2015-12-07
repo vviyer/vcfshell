@@ -10,7 +10,7 @@ use Log::Log4perl qw (:easy);
 Log::Log4perl->easy_init($DEBUG);
 use Data::Dumper;
 
-# use Getopt::Long;
+use Getopt::Long;
 
 # Initialise config files
 my $config;
@@ -71,20 +71,19 @@ sub initialise_delegates{
 	}
 }
 
-parse_header {
+sub parse_header {
 	my $file = shift;
 	die "must provide vcf file input" unless $file;
-	foreach my $delegate (values %$delegates){
-		my $cmd = "bcftools query -h $file | egrep '$delegate_trigger' ";
+	foreach my $delegate_name (keys %$delegates){
+		my $delegate = $delegates->{$delegate_name};
+		my $delegate_trigger = $delegate->header_trigger;
+		my $cmd = "bcftools view -h $file | egrep '$delegate_trigger' ";
 		open(BCFT, "$cmd |") or die "Cant run $cmd\n";
 		while(<BCFT>){
 			chomp;
+			print "$_\n";
 			$delegate->handle_line($_,$header_info);
 		}
-	}
-	open(BCFT,"$cmd |") or die;
-	while(<BCFT>){
-		print "$_";
 	}
 }
 
