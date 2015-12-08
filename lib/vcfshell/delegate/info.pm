@@ -31,6 +31,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 package vcfshell::delegate::info;
 use strict;
+use Log::Log4perl qw(get_logger);
+my $logger = get_logger("vcfshell::delegate::info");
 
 sub new
 {
@@ -48,14 +50,20 @@ sub config {
 	return $self->{_config};
 }
 
+sub handle_command {
+	my $self = shift;
+	my $command = shift;
+	return "handling command $command from info";
+}
+
+sub handle_header_line {
+	my $self = shift;
+	my $line = shift;
+}
+
 sub header_trigger {
 	my $self = shift;
 	return "^##INFO";
-}
-
-sub handle_line {
-	my $self = shift;
-	my $line = shift;
 }
 
 return 1;

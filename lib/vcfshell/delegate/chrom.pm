@@ -36,6 +36,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 package vcfshell::delegate::chrom;
 use strict;
+use Log::Log4perl qw(get_logger);
+my $logger = get_logger("vcfshell::delegate::chrom");
 
 sub new
 {
@@ -54,16 +56,23 @@ sub config {
 	return $self->{_config};
 }
 
-sub header_trigger {
+sub handle_command {
 	my $self = shift;
-	return "^#CHROM";
+	my $command = shift;
+	$logger->info("$command");
+	if($command eq 'samples'){
+		my $sample_string = join(' ', @{$samples}); 
+		$logger->debug("returning $sample_string");
+		return $sample_string;
+	}
 }
 
-sub handle_line {
+sub handle_header_line {
 	my $self = shift;
 	my $line = shift;
 	my @parts = split /\t/,$line;
 	my $samples_started = 0;
+	$logger->debug("handing header line $line");
 	foreach my $part (@parts){
 		if($samples_started){
 			push(@{$self->samples}, $part)
@@ -72,6 +81,13 @@ sub handle_line {
 			$samples_started = 1;
 		}
 	}
+	my @samples = @{$self->samples};
+	$logger->debug("handled header line, samples @samples");
+}
+
+sub header_trigger {
+	my $self = shift;
+	return "^#CHROM";
 }
 
 sub samples {
