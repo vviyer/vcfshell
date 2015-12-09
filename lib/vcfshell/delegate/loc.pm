@@ -58,7 +58,6 @@ sub handle_command {
 			# Looking to emulate a command for examining a SINGLE location, like: 
 			# bcftools query -r chr1:182686 -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' -s 2994STDY5774498,2994STDY5803390 data/combined_bcn_stjudes_genomes_exomes_h38.vep.severe.vcf.gz 
 			# but present the in-shell view with samples on the y-axis and format/info/csq on the x-axis.
-			my $output = "";
 			my $loc = $args[0];
 
 			# file argument
@@ -74,21 +73,67 @@ sub handle_command {
 			
 			# locus-specific info fields (e.g. %INFO/DP %INFO/INDEL %INFO/DP %INFO/DP4 )
 			my @info_loc_fields = ("DP","INDEL","AC","DP4");
-			my $info_loc_fields_string = "%INFO/DP\t%INFO/INDEL\tINFO/AC\t%INFO/DP4";
+			my $info_loc_fields_string = "%INFO/DP\t%INFO/INDEL\t%INFO/AC\t%INFO/DP4";
 
 			# format fields (e.g. [%GT %GQ %PL %DPR] )
 			my @format_fields = ("GT","GQ","PL","DPR");
-			my $format_fields_string = "[%GT\t%GQ\t%PL\t%DPR]";
+			my $format_fields_string = "%GT\t%GQ\t%PL\t%DPR\t";
 
-			my $cmd = "bcftools query -f'$non_info_loc_fields_string\t$info_loc_fields_string\t[\t$format_fields_string]' -s$sample_string -r$loc $file";
+			my $cmd = "bcftools query -f'$non_info_loc_fields_string\t$info_loc_fields_string\t[$format_fields_string]\n' -s$sample_string -r$loc $file";
 			$logger->debug("fetching loc data with command $cmd");
 			open(BCFT, "$cmd |") or die "Cant run $cmd - error: $!\n";
+
 			my $output = "";
 			my $locus_section = {};
 			my $sample_section = {};
+
+			my @locus_section_names = (@non_info_loc_fields,@info_loc_fields);
+			my @all_fields = ();
+
 			while(<BCFT>){
 				chomp;
-				$output .= "$_\n";
+				@all_fields = split /\t/, $_;
+				last;
+			}
+			my $pos = 0;
+			# First pass through the locus-specific fields and place into the locus_section hash
+			foreach my $field_name (@locus_section_names){
+				my $field_value = $all_fields[$pos];
+				$locus_section->{$field_name} = $field_value;
+				$logger->debug("set locus field $field_name to value $field_value");
+				$pos++;
+			}
+			foreach my $sample_name (@samples){
+				foreach my $field_name (@format_fields){
+					my $field_value = $all_fields[$pos];
+					$sample_section->{$sample_name}->{$field_name} = $field_value;
+					$logger->debug("sample $sample_name field $field_name to value $field_value");
+					$pos++;
+				}
+			}
+
+			# Now create and return the output block
+			my $output = "";
+			foreach my $field (@non_info_loc_fields){
+				my $value = $locus_section->{$field};
+				$output .= "$field\t$value\n"; 
+			}
+			foreach my $field (@info_loc_fields){
+				my $value = $locus_section->{$field};
+				$output .= "$field\t$value\n"; 
+			}
+			$output .= "SAMPLE\t\t";
+			foreach my $format_field (@format_fields){
+				$output .= "$format_field\t\t";
+			}
+			$output .= "\n";
+			foreach my $sample (@samples){
+				$output .= "$sample\t\t";
+				foreach my $field (@format_fields){
+					my $value = $sample_section->{$sample}->{$field};
+					$output .= "$value\t\t"; 
+				}
+				$output .= "\n";
 			}
 			return $output;
 		}
