@@ -11,21 +11,21 @@ Log::Log4perl->init("conf/logger.conf");
 use Data::Dumper;
 
 use Getopt::Long;
+use vcfshell::state;
 
 # Initialise config files
 my $config;
-my $state;
+my $session_state = vcfshell::state->new();
 my $delegates = {};
 my $triggers = {};
 my $user_config_file = "";
 my $vcf_file = "";
-my $header_info = "";
 
 my $logger = get_logger();
 
 GetOptions(
-	        "vcf_file=s"=>\$vcf_file, 
-	        "user_config=s"=>\$user_config_file, 
+	"vcf_file=s"=>\$vcf_file, 
+	"user_config=s"=>\$user_config_file, 
 );  
 
 # Write basic and user configs into the $config hash
@@ -35,6 +35,7 @@ initialise_user_config($ENV{HOME}."/.vcfshell.user.conf");
 # Scoop up the delegates defined in the basic & user configs and prime trigger & state 
 initialise_delegates();
 
+$session_state->vcf_file($vcf_file);
 parse_header($vcf_file);
 
 my $output = "";
@@ -43,6 +44,18 @@ sub add_delegate_trigger {
 	my $triggers = shift;
 	my $delegate = shift;
 	$triggers->{$delegate->header_trigger} = $delegate;
+}
+
+sub completion {
+    my ($text, $state, $start, $end) = @_;
+    if ($text eq "yay") {
+        return "yay autocompleted";;
+    }
+    else {
+	    # TODO - work out why this works: This commented line 
+	    # actually seems to correctly trigger filename completion
+	    # return Term::ReadLine::Gnu->filename_completion_function($text, $state);
+    }
 }
 
 sub initialise_basic_config{
@@ -66,6 +79,7 @@ sub initialise_delegates{
 		$logger->debug(" trying to load $delegate_class\n");
 		load($delegate_class);
 		my $obj = $delegate_class->new();
+		$obj->config($config);
 		$delegates->{$delegate_class} = $obj;
 		add_delegate_trigger($triggers, $obj);
 		$logger->debug("GOT $obj with trigger ".$obj->header_trigger."\n");
@@ -74,7 +88,7 @@ sub initialise_delegates{
 
 sub parse_header {
 	my $file = shift;
-	die "must provide vcf file input" unless $file;
+	$logger->error("must provide vcf file input") unless $file;
 	foreach my $delegate_name (keys %$delegates){
 		my $delegate = $delegates->{$delegate_name};
 		my $delegate_trigger = $delegate->header_trigger;
@@ -82,21 +96,9 @@ sub parse_header {
 		open(BCFT, "$cmd |") or die "Cant run $cmd - error: $!\n";
 		while(<BCFT>){
 			chomp;
-			$delegate->handle_header_line($_,$header_info);
+			$delegate->handle_header_line($_, $session_state);
 		}
 	}
-}
-
-sub completion {
-    my ($text, $state, $start, $end) = @_;
-    if ($text eq "yay") {
-        return "yay completed";;
-    }
-    else {
-	    # TODO - work out why this works: This commented line 
-	    # actually seems to correctly trigger filename completion
-	    # return Term::ReadLine::Gnu->filename_completion_function($text, $state);
-    }
 }
 
 my $term = new Term::ReadLine 'vcfshell';
@@ -109,12 +111,22 @@ $attribs->{attempted_completion_function} = \&completion;;
 my $OUT = $term->OUT || \*STDOUT;
 my $prompt = "vcfs> ";
 
+my $output = "";
 while ( defined ($_ = $term->readline($prompt)) ) {
 	# The autocompletion has already happened when we get to this point 
 	foreach my $delegate_name (keys %$delegates){
 		my $delegate = $delegates->{$delegate_name};
-		my $output = $delegate->handle_command($_);
+		$logger->debug("handle command with full line $_");
+		my ($command, @args) = split /\s+/,$_;
+		$logger->debug("handle command with $session_state, $command, @args");
+		$output = $delegate->handle_command($session_state, $command, @args);
+		if(length($output)>0){
+			$logger->debug("found output $output from $delegate_name\n");
+			last;
+		}
 	}
+
+	print $OUT "$output\n";
 
 	# only add to history after all processing complete
 	$term->addhistory($_) if /\S/;

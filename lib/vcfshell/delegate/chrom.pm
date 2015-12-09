@@ -56,20 +56,33 @@ sub config {
 	return $self->{_config};
 }
 
+
+=head2 NAME                    
+handle_command
+=cut
 sub handle_command {
-	my $self = shift;
-	my $command = shift;
-	$logger->info("$command");
+	my ($self, $state, $command, @args) = @_;
+	$logger->debug("state $state, command $command, args @args");
 	if($command eq 'samples'){
-		my $sample_string = join(' ', @{$samples}); 
-		$logger->debug("returning $sample_string");
-		return $sample_string;
+		$logger->debug("args @args");
+		# If you have no extra sample args, then just return a string of all samples
+		my $output = "";
+		if(!@args){
+			$output = $self->truncate_for_output_if_needed(@{$self->samples}); 
+		}else{
+			$state->samples(\@args);
+			$output = $self->truncate_for_output_if_needed(@args); 
+			$output .= " ok";
+		}
+		$logger->debug("returning $output");
+		return $output;
 	}
 }
 
 sub handle_header_line {
 	my $self = shift;
 	my $line = shift;
+	my $state = shift;
 	my @parts = split /\t/,$line;
 	my $samples_started = 0;
 	$logger->debug("handing header line $line");
@@ -83,6 +96,7 @@ sub handle_header_line {
 	}
 	my @samples = @{$self->samples};
 	$logger->debug("handled header line, samples @samples");
+	$state->samples($self->samples);
 }
 
 sub header_trigger {
@@ -91,8 +105,24 @@ sub header_trigger {
 }
 
 sub samples {
-	my $self = shift;
+	my ($self,$arg) = @_;
+	if($arg){
+		$self->{_samples} = $arg;
+	}
 	return $self->{_samples};
+}
+
+sub truncate_for_output_if_needed {
+	my ($self, @input) = @_;
+	my $trunced_output = "";
+	my $size = scalar(@input);
+	if($size > 4){
+		$logger->debug("truncating input");
+		return $input[0]." ".$input[1]." ".$input[2]." ... ".$input[scalar(@input)-1] . " ($size)";
+	}else{
+		$logger->debug("not truncating @input");
+		return join " ",@input;
+	}
 }
 
 return 1;

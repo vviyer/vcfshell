@@ -34,6 +34,8 @@ use strict;
 use Log::Log4perl qw(get_logger);
 my $logger = get_logger("vcfshell::delegate::info");
 
+my $infos = [];
+
 sub new
 {
     my $class = shift;
@@ -53,7 +55,7 @@ sub config {
 sub handle_command {
 	my $self = shift;
 	my $command = shift;
-	return "handling command $command from info";
+	return undef;
 }
 
 sub handle_header_line {
@@ -64,6 +66,11 @@ sub handle_header_line {
 sub header_trigger {
 	my $self = shift;
 	return "^##INFO";
+}
+
+sub infos {
+	my ($self) = @_;
+	return $self->{_infos};
 }
 
 return 1;

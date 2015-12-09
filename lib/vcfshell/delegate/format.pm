@@ -53,7 +53,7 @@ sub config {
 sub handle_command {
 	my $self = shift;
 	my $command = shift;
-	return "handling command $command from format";
+	return undef;
 }
 
 sub handle_header_line {
