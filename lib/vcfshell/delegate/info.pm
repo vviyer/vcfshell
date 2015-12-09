@@ -34,8 +34,6 @@ use strict;
 use Log::Log4perl qw(get_logger);
 my $logger = get_logger("vcfshell::delegate::info");
 
-my $infos = [];
-
 sub new
 {
     my $class = shift;
@@ -44,6 +42,7 @@ sub new
     };
     # Print all the values just for clarification.
     bless $self, $class;
+    $self->{_info} = {};
     return $self;
 }
 
@@ -53,14 +52,53 @@ sub config {
 }
 
 sub handle_command {
-	my $self = shift;
-	my $command = shift;
-	return undef;
+	my ($self, $state, $command, @args) = @_;
+	if($command eq 'info'){
+		# If you have no extra sample args, then just return a string of all info fields and descriptions 
+		my $output = "";
+		if(!scalar(@args)){
+			my $output_format = "%-15s%-15s\n";
+			foreach my $key (keys %{$state->info}){
+				my $desc = $state->info->{$key};
+				$logger->debug("INFO command $key $desc");
+				$output .= sprintf($output_format,$key,$desc);
+			}
+		}else{
+			# Here we've been given a list of keys, so we have to make a new hash with the key-subset 
+			my $tmp_hash = {};
+			foreach my $key (@args){
+				my $actual_hash = $self->info;
+				$tmp_hash->{$key} = $actual_hash->{$key};
+			}
+			$state->info($tmp_hash);
+			$output = "info @args ok";
+		}
+		return $output;
+	}
 }
 
 sub handle_header_line {
 	my $self = shift;
 	my $line = shift;
+	my $state = shift;
+	my $trigger = $self->header_trigger;
+	my $match_pattern = '^##INFO=\<ID=(\w+),.+,Description=\"(.+)\"\>';
+	$logger->debug("handing header line $line with match pattern $match_pattern");
+
+	$line =~ /$match_pattern/;
+
+	my $id = $1;
+	my $desc  = $2;
+	$logger->debug("got ID $id and Description \"$desc\"");
+	if(length($id)>0 && length($desc)>0){
+		$logger->debug("value of id $id and desc $desc"); 
+	}else{
+		$logger->fatal("Programmer error - FORMAT match pattern not working for line $line") if not ((defined($id) and defined($desc)));
+		die "Programmer error - FORMAT match pattern not working for line $line";
+	}
+
+	$self->info->{$id} = $desc;
+	$state->info->{$id} = $desc;
 }
 
 sub header_trigger {
@@ -68,9 +106,13 @@ sub header_trigger {
 	return "^##INFO";
 }
 
-sub infos {
-	my ($self) = @_;
-	return $self->{_infos};
+sub info {
+	my $self = shift;
+	my $arg = shift;
+	if($arg){
+		$self->{_info} = $arg;
+	}
+	return $self->{_info};
 }
 
 return 1;

@@ -52,8 +52,8 @@ sub new
     # Print all the values just for clarification.
     bless $self, $class;
     $self->{_samples} = [];
-    $self->{_format} = [];
-    $self->{_info} = [];
+    $self->{_format} = {};
+    $self->{_info} = {};
     $self->{_vcf_file} = [];
     return $self;
 }

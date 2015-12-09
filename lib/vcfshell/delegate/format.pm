@@ -32,6 +32,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 package vcfshell::delegate::format;
 use strict;
 use Log::Log4perl qw(get_logger);
+use Data::Dumper;
 my $logger = get_logger("vcfshell::delegate::format");
 
 sub new
@@ -42,6 +43,7 @@ sub new
     };
     # Print all the values just for clarification.
     bless $self, $class;
+    $self->{_format} = {};
     return $self;
 }
 
@@ -50,15 +52,64 @@ sub config {
 	return $self->{_config};
 }
 
-sub handle_command {
+sub format {
 	my $self = shift;
-	my $command = shift;
-	return undef;
+	my $arg = shift;
+	if($arg){
+		$self->{_format} = $arg;
+	}
+	return $self->{_format};
+}
+
+sub handle_command {
+	my ($self, $state, $command, @args) = @_;
+	if($command eq 'format'){
+		# If you have no extra sample args, then just return a string of all format fields and descriptions 
+		my $output = "";
+		if(!scalar(@args)){
+			my $output_format = "%-15s%-15s\n";
+			foreach my $key (keys %{$state->format}){
+				my $desc = $state->format->{$key};
+				$logger->debug("FORMAT command $key $desc");
+				$output .= sprintf($output_format,$key,$desc);
+			}
+		}else{
+			# Here we've been given a list of keys, so we have to make a new hash with the key-subset 
+			my $tmp_hash = {};
+			foreach my $key (@args){
+				my $actual_hash = $self->format;
+				$tmp_hash->{$key} = $actual_hash->{$key};
+			}
+			$state->format($tmp_hash);
+			$output = "format @args ok";
+		}
+		return $output;
+	}
 }
 
 sub handle_header_line {
 	my $self = shift;
 	my $line = shift;
+	my $state = shift;
+	my $trigger = $self->header_trigger;
+	my $match_pattern = '^##FORMAT=\<ID=(\w+),.+,Description=\"(.+)\"\>';
+	$logger->debug("handing header line $line with match pattern $match_pattern");
+
+	$line =~ /$match_pattern/;
+
+	my $id = $1;
+	my $desc  = $2;
+	$logger->debug("got ID $id and Description \"$desc\"");
+	if(length($id)>0 && length($desc)>0){
+		$logger->debug("value of id $id and desc $desc"); 
+	}else{
+		$logger->fatal("Programmer error - FORMAT match pattern not working for line $line") if not ((defined($id) and defined($desc)));
+		die "Programmer error - FORMAT match pattern not working for line $line";
+	}
+
+	$self->format->{$id} = $desc;
+	$state->format->{$id} = $desc;
+	# print STDERR Dumper($state->format);
 }
 
 sub header_trigger {
