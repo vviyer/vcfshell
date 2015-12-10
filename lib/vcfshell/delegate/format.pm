@@ -61,6 +61,16 @@ sub format {
 	return $self->{_format};
 }
 
+=head2 NAME                    
+handle_command
+
+=head2 DESCRIPTION
+If no args passed in, return a list of formats & descriptions to the screen (derived from header line)
+
+If a list of args are passed in, assume restrict the formats to be displayed and store them in the state.
+
+If the only arg passed in is 'reset' then reset the format list in the session state to be the full initial list.
+=cut
 sub handle_command {
 	my ($self, $state, $command, @args) = @_;
 	if($command eq 'format'){
@@ -75,13 +85,19 @@ sub handle_command {
 			}
 		}else{
 			# Here we've been given a list of keys, so we have to make a new hash with the key-subset 
-			my $tmp_hash = {};
-			foreach my $key (@args){
-				my $actual_hash = $self->format;
-				$tmp_hash->{$key} = $actual_hash->{$key};
+			# However if the argument is 'reset' then set the format state back to the original 
+			if((scalar(@args)==1) && ($args[0] eq 'reset')){
+				$state->format($self->format);
+				$output = "format keys reset";
+			}else{
+				my $tmp_hash = {};
+				foreach my $key (@args){
+					my $actual_hash = $self->format;
+					$tmp_hash->{$key} = $actual_hash->{$key};
+				}
+				$state->format($tmp_hash);
+				$output = "format @args ok";
 			}
-			$state->format($tmp_hash);
-			$output = "format @args ok";
 		}
 		return $output;
 	}

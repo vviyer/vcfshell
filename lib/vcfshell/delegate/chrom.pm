@@ -56,25 +56,40 @@ sub config {
 	return $self->{_config};
 }
 
-
 =head2 NAME                    
 handle_command
+
+=head2 DESCRIPTION
+If no args passed in, return a list of samples to the screen (derived from header line), shortening the list if need be with a '...'
+
+If the only arg passed in is 'full' then write out _all_ the samples, not a shortened list. 
+
+If a list of args are passed in, assume these are the samples to be displayed and store them in the state.
+
+If the only arg passed in is 'reset' then reset the list passed in to be the full initial list.
 =cut
 sub handle_command {
 	my ($self, $state, $command, @args) = @_;
 	$logger->debug("state $state, command $command, args @args");
 	if($command eq 'samples'){
-		$logger->debug("args @args");
 		# If you have no extra sample args, then just return a string of all samples
 		my $output = "";
 		if(!@args){
-			$output = $self->truncate_for_output_if_needed(@{$self->samples}); 
+			$output = $self->truncate_for_output_if_needed(@{$state->samples}); 
 		}else{
-			$state->samples(\@args);
-			$output = $self->truncate_for_output_if_needed(@args); 
-			$output .= " ok";
+			if(scalar(@args) ==1){
+				if($args[0] eq 'reset'){
+					$state->samples($self->samples);
+				}elsif($args[0] eq 'full'){
+					$output = join(' ', sort (@{$self->samples}));
+				}
+			}else{
+				$state->samples(\@args);
+				$output = $self->truncate_for_output_if_needed(@args); 
+				$output .= " ok";
+			}
 		}
-		$logger->debug("returning $output");
+		$logger->debug("$command @args returning $output");
 		return $output;
 	}
 }
@@ -94,9 +109,11 @@ sub handle_header_line {
 			$samples_started = 1;
 		}
 	}
+	# set full list of samples local to this instance,
+	# and copy to state if the user wants to play with them
 	my @samples = @{$self->samples};
-	$logger->debug("handled header line, samples @samples");
 	$state->samples($self->samples);
+	$logger->debug("handled header line, samples @samples");
 }
 
 sub header_trigger {

@@ -65,13 +65,20 @@ sub handle_command {
 			}
 		}else{
 			# Here we've been given a list of keys, so we have to make a new hash with the key-subset 
-			my $tmp_hash = {};
-			foreach my $key (@args){
-				my $actual_hash = $self->info;
-				$tmp_hash->{$key} = $actual_hash->{$key};
+			# However if the argument is 'reset' then set the format state back to the original 
+			if((scalar(@args)==1) && ($args[0] eq 'reset')){
+				$state->info($self->info);
+				$output = "info keys reset";
+			}else{
+				# Here we've been given a list of keys, so we have to make a new hash with the key-subset 
+				my $tmp_hash = {};
+				foreach my $key (@args){
+					my $actual_hash = $self->info;
+					$tmp_hash->{$key} = $actual_hash->{$key};
+				}
+				$state->info($tmp_hash);
+				$output = "info @args ok";
 			}
-			$state->info($tmp_hash);
-			$output = "info @args ok";
 		}
 		return $output;
 	}

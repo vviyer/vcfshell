@@ -40,7 +40,6 @@ use Module::Load;
 use Log::Log4perl qw(get_logger :levels);
 Log::Log4perl->init("conf/logger.conf");
 use Data::Dumper;
-
 use Getopt::Long;
 use vcfshell::state;
 
