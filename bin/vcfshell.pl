@@ -45,35 +45,23 @@ use vcfshell::state;
 
 # Initialise config files
 my $config;
-my $session_state = vcfshell::state->new();
+my $initial_state;
+my $session_state;
 my $delegates = {};
+my @delegates_in_load_order = ();
 my $triggers = {};
-my $user_config_file = "";
-my $vcf_file = "";
-
-my $logger = get_logger();
-
-GetOptions(
-	"vcf_file=s"=>\$vcf_file, 
-	"user_config=s"=>\$user_config_file, 
-);  
-
-# Write basic and user configs into the $config hash
-initialise_basic_config($ENV{HOME}."/.vcfshell.basic.conf");
-initialise_user_config($ENV{HOME}."/.vcfshell.user.conf");
-
-# Scoop up the delegates defined in the basic & user configs and prime trigger & state 
-initialise_delegates();
-
-$session_state->vcf_file($vcf_file);
-parse_header($vcf_file);
-
-my $output = "";
+my $user_config_file;
+my $vcf_file;
+my $batch_command;
+my $logger;
 
 sub add_delegate_trigger {
 	my $triggers = shift;
 	my $delegate = shift;
-	$triggers->{$delegate->header_trigger} = $delegate;
+	#If the delegate has exposed a trigger (some delegates may not)
+	if($delegate->header_trigger){
+		$triggers->{$delegate->header_trigger} = $delegate;
+	}
 }
 
 sub completion {
@@ -106,6 +94,7 @@ sub initialise_delegates{
 	foreach my $delegate (@{$config->param("delegate.delegates")}){
 		$logger->debug("$delegate\n\n");
 		my $delegate_class = "vcfshell::delegate::${delegate}";
+		push @delegates_in_load_order, $delegate_class; 
 		$logger->debug(" trying to load $delegate_class\n");
 		load($delegate_class);
 		my $obj = $delegate_class->new();
@@ -119,7 +108,7 @@ sub initialise_delegates{
 sub parse_header {
 	my $file = shift;
 	$logger->error("must provide vcf file input") unless $file;
-	foreach my $delegate_name (keys %$delegates){
+	foreach my $delegate_name (@delegates_in_load_order){
 		my $delegate = $delegates->{$delegate_name};
 		my $delegate_trigger = $delegate->header_trigger;
 		my $cmd = "bcftools view -h $file | egrep '$delegate_trigger' ";
@@ -131,6 +120,81 @@ sub parse_header {
 	}
 }
 
+=head2 NAME                    
+handle_input
+=head2 DESCRIPTION
+This is the main handler for the input, whether its coming from Term::ReadLine or is passed in via batch
+=cut
+sub handle_input {
+	my $input = shift;
+	my $output = "";
+	foreach my $delegate_name (keys %$delegates){
+		my $delegate = $delegates->{$delegate_name};
+		$logger->debug("handle command with full line $_");
+		my ($command, @args) = split /\s+/,$input;
+		$logger->debug("handle command with $session_state, $command, @args");
+		$output = $delegate->handle_command($session_state, $command, @args);
+		if(length($output)>0){
+			$logger->debug("found output $output from $delegate_name\n");
+			last;
+		}
+	}
+	return $output;
+}
+
+#
+# Script processing starts here
+#
+GetOptions(
+	"vcf_file=s"=>\$vcf_file, 
+	"initial_state:s"=>\$initial_state, 
+	"batch_command:s"=>\$batch_command, 
+	"user_config=s"=>\$user_config_file, 
+);  
+
+if(!$vcf_file){
+	die "have to provide vcf_file argument as --vcf_file\n";
+}
+
+
+# create an empty state instance - scope is this script
+$session_state = vcfshell::state->new();
+# initialise the root logger according to the conf/logger.conf file
+$logger = get_logger();
+
+# Write basic system configs into the $config hash 
+# - This tells the system which delegates to load 
+initialise_basic_config($ENV{HOME}."/.vcfshell.basic.conf");
+
+# Scoop up the delegates defined in the config and prime the triggers & state 
+initialise_delegates();
+
+$session_state->vcf_file($vcf_file);
+parse_header($vcf_file);
+
+# If we are in batch, then initialise the state (if it's provided)
+# and get the delegates to handle the input
+# - print out any delegate-specific response
+# - and stop! 
+if($batch_command){
+	# If we've been given an initial state, then use the state delegate to load the initial_state file 
+	if($initial_state){
+		my $state_delegate = $delegates->{'vcfshell::delegate::state'};
+		die "cant find state delegate to load specified state" unless $state_delegate;
+		$logger->debug("loading state $initial_state with delegate $state_delegate");
+		$state_delegate->handle_command($session_state, "state", ("load",$initial_state));
+		$logger->debug("loaded state $initial_state with delegate $state_delegate");
+	}
+
+	$session_state->batch_command($batch_command);
+	my $output = handle_input($batch_command);
+	print $output;
+	exit(0);
+}
+
+# If we are not in batch (interactive!), 
+# use Term::ReadLine to set up an interactive shell
+
 my $term = new Term::ReadLine 'vcfshell';
 
 #Set up the completion function
@@ -141,21 +205,13 @@ $attribs->{attempted_completion_function} = \&completion;;
 my $OUT = $term->OUT || \*STDOUT;
 my $prompt = "vcfs> ";
 
-my $output = "";
 while ( defined ($_ = $term->readline($prompt)) ) {
-	# The autocompletion has already happened when we get to this point 
-	foreach my $delegate_name (keys %$delegates){
-		my $delegate = $delegates->{$delegate_name};
-		$logger->debug("handle command with full line $_");
-		my ($command, @args) = split /\s+/,$_;
-		$logger->debug("handle command with $session_state, $command, @args");
-		$output = $delegate->handle_command($session_state, $command, @args);
-		if(length($output)>0){
-			$logger->debug("found output $output from $delegate_name\n");
-			last;
-		}
-	}
 
+	my $output = "";
+
+	# The autocompletion has already happened when we get to this point 
+
+	$output = handle_input($_);
 	print $OUT "$output\n";
 
 	# only add to history after all processing complete

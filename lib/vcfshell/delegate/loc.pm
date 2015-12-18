@@ -51,18 +51,59 @@ sub config {
 	return $self->{_config};
 }
 
+=head2 NAME                    
+get_first_few_loci
+
+=head2 DESCRIPTION
+in response to loc first <possible chr argument>
+retrieve first 10 positions of whole file (if args[1] is missing) or the specified chromosome (if 
+=cut
+sub get_first_few_loci {
+	my $self = shift;
+	my $file = shift;
+	my $segment = shift;
+	my $output = "";
+	my $cmd = "";
+	if($segment){
+		$cmd = "bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\n' -r$segment $file";
+	}else{
+		$cmd = "bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\n' $file";
+	}
+	$logger->debug("fetching first ten locus data with command $cmd");
+	open(BCFT, "$cmd |") or die "Cant run $cmd - error: $!\n";
+
+	my @f = ();
+	my $locus_format = "%-15s%-15s%-15s\n";
+	$output .= "-------- FIRST FEW LOCI \n"; 
+	my $line = 0;
+	while(<BCFT>){
+		$line++;
+		chomp;
+		@f = split /\t/, $_;
+		$output .= sprintf($locus_format,$f[0].":".$f[1],$f[2],$f[3]);
+		last if ($line > 10);
+	}
+	$output .= "--------\n"; 
+}
+
 sub handle_command {
 	my ($self, $state, $command, @args) = @_;
 	if($command eq 'loc'){
 		# need actual position arguments passed into a loc command
 		if(@args){
+			my $output = "";
+			
+			my $file = $state->vcf_file;
+
+			if($args[0] eq 'first'){
+				$output = $self->get_first_few_loci($file,$args[1]);
+				return $output;
+			}
+
 			# Looking to emulate a command for examining a SINGLE location, like: 
 			# bcftools query -r chr1:182686 -f '%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n' -s 2994STDY5774498,2994STDY5803390 data/combined_bcn_stjudes_genomes_exomes_h38.vep.severe.vcf.gz 
 			# but present the in-shell view with samples on the y-axis and format/info/csq on the x-axis.
 			my $loc = $args[0];
-
-			# file argument
-			my $file = $state->vcf_file;
 
 			# sample argument (-s)
 			my @samples = @{$state->samples};
@@ -90,7 +131,6 @@ sub handle_command {
 			$logger->debug("fetching loc data with command $cmd");
 			open(BCFT, "$cmd |") or die "Cant run $cmd - error: $!\n";
 
-			my $output = "";
 			my $locus_section = {};
 			my $sample_section = {};
 

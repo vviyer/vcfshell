@@ -99,4 +99,12 @@ sub vcf_file {
 	return $self->{_vcf_file};
 }
 
+sub batch_command {
+	my $self = shift;
+	my $arg = shift;
+	if($arg){
+		$self->{_batch_command} = $arg;
+	}
+	return $self->{_batch_command};
+}
 return 1;
